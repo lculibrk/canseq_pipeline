@@ -1,5 +1,6 @@
 # canseq_pipeline
 Written and maintained by Luka Culibrk at Canada's Michael Smith Genome Sciences Centre
+
 Currently under construction
 Pipeline for de novo assemblies for the CanSeq150 project
 
