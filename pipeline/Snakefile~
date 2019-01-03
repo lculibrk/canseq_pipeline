@@ -1,0 +1,399 @@
+import glob
+import os
+prefix=config["prefix"]
+
+## Glob files with *fastq.gz ending
+
+FASTQs = glob.glob("data/" + prefix + "/mkfastq/*fastq.gz")
+## If FASTQs is an empty list, then the files are not properly named
+
+if not FASTQs:
+    ### Glob the improperly named files
+    unzipFQ = glob.glob("data/" + prefix + "/mkfastq/*")
+    ### Check if still gzipped
+    gz = glob.glob("data/" + prefix + "/mkfastq/*.gz")
+    ### If the file is gzipped then remove two levels of extensions
+    if gz:
+        interfq = [re.sub(".[^.]*$", "", i) for i in gz]
+        basefq = [re.sub(".[^.]*$", "", i) for i in interfq]
+    ### Otherwise it's a text file so just remove one level
+    elif not gz:
+        basefq = [re.sub(".[^.]*$", "", i) for i in unzipFQ]
+    ### This is the file we want
+    wantfq = [name + ".fastq.gz" for name in basefq]
+    FASTQs = wantfq
+### Base name of the fastq files for use in Supernova
+if not FASTQs:
+    filteredFQ = glob.glob("data/" + prefix + "/filtered_mkfastq/*")
+    FASTQs = filteredFQ
+filtfq = [os.path.basename(x) for x in FASTQs]
+filtfq.sort()
+
+if "type" in config:
+    if config["type"] == "nano":
+        output = config["prefix"] + ".nanopore.done.txt"
+    elif config["type"] == "chromium":
+        output = config["prefix"] + ".done.txt"
+else:
+    output = config["prefix"] + ".done.txt"
+
+
+wildcard_constraints:
+    prefix="\w+"
+
+rule all:
+    input:
+        output
+
+#### This section coerces file extensions to a proper format and ensures that all input fastqs are zipped
+
+## Gzip files that aren't gzipped; fastq or fq. Two rules for the mkfastqs because cyclic dependencies give me a headache
+
+rule rezip_mkfastq_fastq:
+    input:
+        "data/{prefix}/mkfastq/{file}.fastq"
+    output:
+        "data/{prefix}/mkfastq/{file}.fastq.gz"
+    shell:
+        "gzip -c {input} > {output}; rm {input}"
+
+rule rezip_mkfastq_fq:
+    input:
+        "data/{prefix}/mkfastq/{file}.fq"
+    output:
+        temp("data/{prefix}/mkfastq/{file}.fq.gz")
+    shell:
+        "gzip -c {input} > {output}; rm {input}"
+
+rule rezipbasic:
+    input:
+        file="data/{prefix}/basic/basic.fq"
+    output:
+        "data/{prefix}/basic/basic.fq.gz"
+    shell:
+        "gzip -c {input} > {output}"
+
+## In case input files were .fq.gz
+
+rule rename_fqgz:
+    input:
+        "data/{prefix}/mkfastq/{file}.fq.gz"
+    output:
+        "data/{prefix}/mkfastq/{file}.fastq.gz"
+    shell:
+        "mv {input} {output}"
+
+#### Generate filter files
+
+## Make the filter file for the mkfastq outputs
+
+#rule mkfilter_R1:
+#    input:
+#        "data/{prefix}/mkfastq/",
+#        FASTQs
+#    output:
+#        temp("data/{prefix}/reads_to_remove_R1.txt")
+#    shell:
+#        "for i in {input[0]}*; do grep -B1 -f /projects/lculibrk_prj/CGEN150/resources/reagent_seqs.txt <(gunzip -c $i) | grep 'HISEQ' | perl -pe 's/\// /' | awk '{{ print $1\"/\"1 }}' >> rtr_tmp; done; sort rtr_tmp > {output}; rm rtr_tmp"
+
+#rule mkfilter_R2:
+#    input:
+#        "data/{prefix}/reads_to_remove_R1.txt"
+##    output:
+#        temp("data/{prefix}/reads_to_remove_R2.txt")
+#    shell:
+#        "cat {input} | perl -pe 's/\// /' | awk '{{ print $1\"/\"2 }}' > {output}"
+
+#rule mkfilter_slash:
+#    input:
+#        "data/{prefix}/reads_to_remove_R1.txt",
+#        "data/{prefix}/reads_to_remove_R2.txt"
+#    output:
+#        temp("data/{prefix}/reads_to_remove_slash.txt")
+#    shell:
+#        "cat {input[0]} {input[1]} | sort > {output}"
+
+#rule mkfilter_noslash:
+#    input:
+#        "data/{prefix}/reads_to_remove_slash.txt"
+#    output:
+#        temp("data/{prefix}/reads_to_remove_noslash.txt")
+#    shell:
+#        "sed 's/\/[1-2]//g' {input} > {output}"
+
+#rule mkfilter:
+#    input:
+#        "data/{prefix}/reads_to_remove_slash.txt",
+#        "data/{prefix}/reads_to_remove_noslash.txt"
+#    output:
+#        "data/{prefix}/reads_to_remove.txt"
+#    shell:
+#        "cat {input[0]} {input[1]} | sort > {output}
+
+## Make the filter file for the longranger basic output
+
+rule mkfilter_basic:
+    input:
+        "data/{prefix}/basic/basic.fq.gz"
+    output:
+        "data/{prefix}/basic_to_remove.txt"
+    shell:
+        "grep -B1 -f /projects/lculibrk_prj/CGEN150/resources/reagent_seqs.txt <(gunzip -c {input}) | grep 'HISEQ' | perl -pe 's/\// /' | awk '{{ print $1 }}' | sort > {output}"
+
+#### Filter fastq files for contaminating adapter sequences using Greg's perl script
+
+## Filter the mkfastq
+
+#rule filterfastq:
+#    input:
+#        file="data/{prefix}/mkfastq/{file}.fastq.gz",
+#        reads="data/{prefix}/reads_to_remove.txt"
+#    output:
+#        "data/{prefix}/filtered_mkfastq/{file}.fastq.gz"
+#    shell:
+#        "/home/lculibrk/scripts/remove_reads_from_fastq.2.pl -1 {input.reads} -2 <(gunzip -c {input.file}) | gzip -c > {output}"
+
+## Filter the longranger basic
+
+rule filterbasic:
+    input:
+        file="data/{prefix}/basic/basic.fq.gz",
+        reads="data/{prefix}/basic_to_remove.txt"
+    output:
+        "data/{prefix}/filtered_basic/basic.fq.gz"
+    shell:
+        "/home/lculibrk/scripts/remove_reads_from_fastq.2.pl -1 {input.reads} -2 <(gunzip -c {input.file}) | gzip -c > {output}"
+
+rule filterfastq:
+    input:
+        expand("data/{prefix}/mkfastq/{files}", prefix = {prefix}, files = filtfq)
+    output:
+        expand("data/{prefix}/filtered_mkfastq/R{R}.fastq.gz", R=[1,2], prefix={prefix})       
+    params:
+        prefix=config["prefix"]
+    shell:
+        "paste <(zcat {input[0]}) <(zcat {input[1]}) | paste - - - - | grep -vif /projects/lculibrk_prj/CGEN150/resources/reagent_seqs.txt | tee >(cut -f1,3,5,7 | tr \"\t\" \"\n\" | gzip -c - > data/{params.prefix}/filtered_mkfastq/R1.fastq.gz) | cut -f2,4,6,8 | tr \"\t\" \"\n\" | gzip -c - > data/{params.prefix}/filtered_mkfastq/R2.fastq.gz; touch {output}"
+
+rule renamefilterfastq_1:
+    input:
+        "data/{prefix}/filtered_mkfastq/R1.fastq.gz"
+    output:
+        "data/{prefix}/filtered_mkfastq/" + filtfq[0]
+    shell:
+        "mv {input} {output}"
+
+rule renamefilterfastq_2:
+    input:
+        "data/{prefix}/filtered_mkfastq/R2.fastq.gz"
+    output:
+        "data/{prefix}/filtered_mkfastq/" + filtfq[1]
+    shell:
+        "mv {input} {output}"
+
+## Enforce creation of all filter files
+              
+rule makeallfilter:
+    input:
+        ancient(expand("data/{prefix}/filtered_mkfastq/{reads}", prefix = {prefix}, reads = filtfq)),
+        "data/{prefix}/filtered_basic/basic.fq.gz"
+    output:
+        "{prefix}.filtering.done"
+    shell:
+        "touch {output}"
+        
+#### Run supernova
+rule supernova:
+    input:
+        ancient("{prefix}.filtering.done"),
+        ancient(expand("data/{id}/filtered_mkfastq/{file}", id={prefix}, file=filtfq))
+    output:
+        "{prefix}/"
+    threads: 32
+    params:
+        reads=config["reads"]
+    shell:
+        "/projects/lculibrk_prj/Supernova/supernova-2.1.1/supernova run --id={wildcards.prefix} --fastqs=data/{wildcards.prefix}/filtered_mkfastq --localcores={threads} --maxreads={params.reads}"
+
+#### Generate supernova FASTA file
+
+rule supernovafasta:
+    input:
+        ancient("{prefix}/")
+    output:
+        "{prefix}.fasta"
+    threads: 32
+    shell:
+        "/projects/lculibrk_prj/Supernova/supernova-2.1.1/supernova mkoutput --asmdir {wildcards.prefix}/outs/assembly/ --outprefix {wildcards.prefix} --style pseudohap --nozip"
+
+#### Link the FASTA to the data directory
+
+rule copyfasta:
+    input:
+        ancient("{prefix}.fasta") 
+    output:
+        "data/{prefix}/fasta/{prefix}.fa"
+    shell:
+        "ln -s --relative {input} {output}"
+
+#### Link the FASTA to the tigmint directory
+
+rule linkfa:
+    input:
+        "data/{prefix}/fasta/{prefix}.fa"
+    output:
+        "tigmint/{prefix}.fa"
+    shell:
+        "ln -s --relative {input} {output}"
+
+#### Link the longranger basic reads to the tigmint directory
+
+rule linkbasic:
+    input:
+        "data/{prefix}/filtered_basic/basic.fq.gz"
+    output:
+        "{directory}/{prefix}_basic.fq.gz"
+    shell:
+        "ln -s --relative {input} {output}"
+
+#### Run tigmint
+
+rule tigmint:
+    input:
+        "tigmint/{prefix}.fa",
+        "tigmint/{prefix}_basic.fq.gz"
+    output:
+        "data/{prefix}/fasta/{prefix}.tigmint.fa"
+    shell:
+        "cd tigmint && /gsc/btl/linuxbrew/Cellar/tigmint/1.1.2_2/bin/tigmint-make tigmint reads={wildcards.prefix}_basic draft={wildcards.prefix}; ln -s --relative {wildcards.prefix}.tigmint.fa ../{output}"
+
+#### Run ARCS
+
+rule tigmintarcs:
+    input:
+        "tigmint/{prefix}.fa",
+        "tigmint/{prefix}_basic.fq.gz",
+        "data/{prefix}/fasta/{prefix}.tigmint.fa"
+    output:
+        "data/{prefix}/fasta/{prefix}.tigmint.arcs.fa"
+    shell:
+        "cd tigmint && /gsc/btl/linuxbrew/Cellar/tigmint/1.1.2_2/bin/tigmint-make arcs reads={wildcards.prefix}_basic draft={wildcards.prefix}; ln -s --relative {wildcards.prefix}.tigmint.arcs.fa ../{output}"
+
+#### Run abyss-fac
+
+rule getsummarystats:
+    input:
+        "data/{prefix}/fasta/{prefix}.tigmint.arcs.fa"
+    output:
+        "data/{prefix}/benchmarks/contiguity.txt"
+    shell:
+        "/gsc/btl/linuxbrew/Cellar/abyss/2.1.1-k128/bin/abyss-fac {input} > {output}"
+
+#### Run BUSCO
+
+rule runBUSCO:
+    input:
+        "data/{prefix}/fasta/{file}.fa"
+    output:
+        "data/{prefix}/benchmarks/BUSCO/{file}/"
+    params:
+        dataset=config["dataset"]
+    shell:
+        "/home/lculibrk/scripts/busco.sh {input} {wildcards.file} {params.dataset} geno"
+
+#### Enforce creation of BUSCO results
+
+rule makeallBUSCO:
+    input:
+        "data/{prefix}/benchmarks/BUSCO/{prefix}.tigmint.arcs/",
+        "data/{prefix}/benchmarks/BUSCO/{prefix}/"
+    output:
+        "{prefix}.BUSCOed.txt"
+    shell:
+        "touch {output}"
+
+#### Clean up
+
+rule zipassembly:
+    input:
+        "data/{prefix}/fasta/{prefix}.fa"
+    output:
+        "{prefix}.zipped.txt"
+    shell:
+        "tar -czvf {wildcards.prefix}.tar.gz {prefix}/; rm -rf {prefix}/; touch {output}"
+
+rule removetigarcsbams:
+    input:
+        "data/{prefix}/fasta/{prefix}.tigmint.arcs.fa"
+    output:
+        "{prefix}.cleaned.txt"
+    shell:
+        "rm -rf tigmint/*.bam; touch {output}"
+rule alldone:
+    input:
+        "{prefix}.BUSCOed.txt",
+        "{prefix}.zipped.txt",
+        "{prefix}.cleaned.txt"
+    output:
+        "{prefix}.done.txt"
+    shell:
+        "touch {output}"
+
+#### Scaffold the Supernova assembly using LINKS if nanopore was specified
+
+rule makenanofof:
+    input:
+        "data/{prefix}/nanopore/nano.fq.gz"
+    output:
+        "nano/{prefix}.fof.txt"
+    shell:
+        "echo $( realpath {input} ) > {output}"
+
+rule linknanofa:
+    input:
+        "data/" + config["prefix"] + "/fasta/{file}.fa"
+    output:
+        "nano/{file}.fa"
+    shell:
+        "seqtk seq {input} > {output}"
+
+rule nano_supernova:
+    input:
+        "nano/{prefix}.fof.txt",
+        "nano/{prefix}.fa"
+    output:
+        "data/{prefix}/fasta/{prefix}.nano_supernova.fa",
+        "{prefix}.nano1.done.txt"
+    shell:
+        "cd nano/ && /projects/rwarren_prj2/LINKS/paper/links_v1.8.5/LINKS -f $( basename ../{input[1]}) -s $( basename ../{input[0]} ) -t 5 -v -b {wildcards.prefix}.nano; ln -s --relative {wildcards.prefix}.fa*pid*scaffolds.fa ../{output[0]}; touch ../{output[1]}"
+
+rule nano_tigarcs:
+    input:
+        "nano/{prefix}.fof.txt",
+        "nano/{prefix}.tigmint.arcs.fa",
+        "{prefix}.nano1.done.txt"
+    output:
+        "data/{prefix}/fasta/{prefix}.nano_tigarcs.fa"
+        "{prefix}.nano2.done.txt"
+    shell:
+        "cd nano && /projects/rwarren_prj2/LINKS/paper/links_v1.8.5/LINKS -f $( basename ../{input[1]}) -s $( basename ../{input[0]} ) -t 5 -v -b {wildcards.prefix}.tigarcs.nano -t5; ln -s --relative {wildcards.prefix}.tigmint.arcs.fa*pid*scaffolds.fa ../{output[0]}; touch ../{output[1]}"  
+
+rule runnanobusco:
+    input:
+        "data/{prefix}/benchmarks/BUSCO/{prefix}.nano_supernova/",
+        "data/{prefix}/benchmarks/BUSCO/{prefix}.nano_tigarcs/"
+    output:
+        "{prefix}.nanobusco.done.txt"
+    shell:
+        "touch {output}"
+ 
+rule nanodone:
+    input:
+        "{prefix}.nano1.done.txt",
+        "{prefix}.nano2.done.txt",
+        "{prefix}.zipped.txt",
+        "{prefix}.cleaned.txt",
+        "{prefix}.nanobusco.done.txt"
+    output:
+        "{prefix}.nanopore.done.txt"
+    shell:
+        "touch {output}"

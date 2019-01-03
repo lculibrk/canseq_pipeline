@@ -1,0 +1,54 @@
+prefix=config["prefix"]
+rule all:
+ input:
+  "sealer/" + prefix + "_sealer_120_scaffold.fa"
+rule buildbloom:
+ input:
+  "data/" + config["prefix"] + "/filtered_basic/basic.fq.gz"
+ output:
+  "sealer/{k}.bloom.all.z"
+ threads:16
+ shell:
+  "abyss-bloom build -vv -k{wildcards.k} -j{threads} -b240G -l2 -q15 - {input} | gzip -c > {output}"
+rule buildallblooms:
+ input:
+  "sealer/90.bloom.all.z",
+  "sealer/100.bloom.all.z",
+  "sealer/110.bloom.all.z",
+  "sealer/120.bloom.all.z"
+ output:
+  "sealer/{prefix}_blooms_done.txt"
+ shell:
+  "touch {output}"
+rule runsealer_90:
+ input:
+  "sealer/{prefix}_blooms_done.txt",
+  fasta=config["fasta"]
+ output:
+  temp("sealer/{prefix}_sealer_90_scaffold.fa")
+ shell:
+  "cd sealer/ && abyss-sealer -vv -S ../{input.fasta} -t ../{output}_trace.txt -o {wildcards.prefix}_sealer_90 -k90 --input-bloom=<(zcat 90.bloom.all.z)"
+rule runsealer_100:
+ input:
+  "sealer/{prefix}_blooms_done.txt",
+  fasta="sealer/{prefix}_sealer_90_scaffold.fa"
+ output:
+  temp("sealer/{prefix}_sealer_100_scaffold.fa")
+ shell:
+  "cd sealer/ && abyss-sealer -vv -S ../{input.fasta} -t ../{output}_trace.txt -o {wildcards.prefix}_sealer_100 -k100 --input-bloom=<(zcat 100.bloom.all.z)"
+rule runsealer_110:
+ input:
+  "sealer/{prefix}_blooms_done.txt",
+  fasta="sealer/{prefix}_sealer_100_scaffold.fa"
+ output:
+  temp("sealer/{prefix}_sealer_110_scaffold.fa")
+ shell:
+  "cd sealer/ && abyss-sealer -vv -S ../{input.fasta} -t ../{output}_trace.txt -o {wildcards.prefix}_sealer_110 -k110 --input-bloom=<(zcat 110.bloom.all.z)"
+rule runsealer_120:
+ input:
+  "sealer/{prefix}_blooms_done.txt",
+  fasta="sealer/{prefix}_sealer_110_scaffold.fa"
+ output:
+  "sealer/{prefix}_sealer_120_scaffold.fa"
+ shell:
+  "cd sealer/ && abyss-sealer -vv -S ../{input.fasta} -t ../{output}_trace.txt -o {wildcards.prefix}_sealer_120 -k120 --input-bloom=<(zcat 120.bloom.all.z)"
