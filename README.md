@@ -1,7 +1,6 @@
 # canseq_pipeline
 Written and maintained by Luka Culibrk at Canada's Michael Smith Genome Sciences Centre
 
-Currently under construction
 Pipeline for de novo assemblies for the CanSeq150 project
 
 Stored here is the pipeline that is being used to assemble metazoan 10X Chromium genomes as part of the CanSeq150 project. 
