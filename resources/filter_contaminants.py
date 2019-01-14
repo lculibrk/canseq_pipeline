@@ -31,6 +31,7 @@ with open(sys.argv[3]) as agp:
 AGP=[line.strip().split("\t") for line in agpfile]
 AGP={t[5]:t for t in AGP}
 
+print(AGP.keys())
 
 
 ## Get sequences
@@ -83,9 +84,12 @@ for element in contamination:
 
 
 for element in trim:
+    # Split by tab-delimination
     split = element.split("\t")
     contig = split[0]
+    # Grab the contig
     scaffold = AGP[contig][0]
+    # Grab the corresponding scaffold
     scaffoldnumeric = re.sub("\D", "", scaffold)
     coordinates=split[2].split("..")
     coordinates[0] = int(coordinates[0]) - 1 + int(AGP[contig][1]) - 1

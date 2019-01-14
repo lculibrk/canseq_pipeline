@@ -162,7 +162,7 @@ rule filterbasic:
     output:
         "data/{prefix}/filtered_basic/basic.fq.gz"
     shell:
-        "/home/lculibrk/scripts/remove_reads_from_fastq.2.pl -1 {input.reads} -2 <(gunzip -c {input.file}) | gzip -c > {output}"
+        "/projects/lculibrk_prj/CGEN150/resources/remove_reads_from_fastq.2.pl -1 {input.reads} -2 <(gunzip -c {input.file}) | gzip -c > {output}"
 
 rule filterfastq:
     input:

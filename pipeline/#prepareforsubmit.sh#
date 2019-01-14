@@ -15,7 +15,7 @@ fi
 
 format_test=$(grep ">" $2 | head -1 | grep ">[0-9]")
 
-if [ ${#format_test} == 0 ]
+if [ ${#format_test} == "" ]
 then
     cp $2 $2.old
     sed -i 's/scaffold//g' $2
