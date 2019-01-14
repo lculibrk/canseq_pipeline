@@ -23,10 +23,29 @@ The assembly process uses a number of software which must be installed:
 
 The pipeline is given as a snakemake workflow that can be run easily using the shell scripts under pipeline/, specifically assemble.sh and sealthis.sh.
 
-After installing the requisite software, you need to configure the workflow for your system. Specifically, you need to add the paths to the software used in the assembly in the following locations:
+After installing the requisite software, you need to configure the workflow for your system. Specifically, you need to make the following changes to the following files:
 
-assemble.sh: 
+pipeline/assemble.sh: 
 * Line 61 should point to your installation of Snakemake and the Snakefile for the pipeline
 
-Snakefile:
+pipeline/Snakefile:
 * Line 141 should point to the "reagent_seqs.txt" file, found in this repo under resources/, and the word "HISEQ" changed to the appropriate term in your FASTQ headers (dependant on the sequencing instrument you use)
+
+* Line 165 should point to the "remove_reads_from_fastq.2.pl" file found in this repo under resources/
+
+* Line 175 as in Line 141
+
+* Lines 215 and 226 should point to your installation of Supernova
+
+* Lines 267 and 279 should point to your installation of tigmint (tigmint-make specifically)
+
+* Line 289 should point to your installation of abyss-fac
+
+* Line 301 should point to a bash script for running BUSCO. The script has been provided under resources/ and must be modified to work
+
+* Lines 367 and 378 should point to your installation of LINKS
+
+resources/busco.sh
+
+This file is not entirely necessary and the line using this file in the Snakefile may be replaced by a line running BUSCO ie. python /path/to/BUSCO.py ...\[arguments].... In fact this is recommended.
+
